@@ -1,48 +1,43 @@
 """
-Database Schemas
+Database Schemas for Hospital Finder
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model corresponds to a collection with the lowercase class name.
+- Hospital -> "hospital"
+- Review   -> "review"
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Use these models for validation when inserting/updating documents.
 """
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional
+from datetime import datetime
 
-from pydantic import BaseModel, Field
-from typing import Optional
 
-# Example schemas (replace with your own):
+class GeoLocation(BaseModel):
+    lat: float = Field(..., ge=-90, le=90, description="Latitude")
+    lng: float = Field(..., ge=-180, le=180, description="Longitude")
 
-class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+class Hospital(BaseModel):
+    name: str = Field(..., description="Hospital name")
+    address: str = Field(..., description="Full address")
+    location: GeoLocation = Field(..., description="Geo coordinates")
+    specialties: List[str] = Field(default_factory=list, description="Medical specialties")
+    total_beds: int = Field(..., ge=0, description="Total bed capacity")
+    available_beds: int = Field(..., ge=0, description="Currently available beds")
+    image_url: Optional[str] = Field(None, description="Display image URL")
+    
+    @field_validator("available_beds")
+    @classmethod
+    def validate_available_beds(cls, v, info):
+        total = info.data.get("total_beds")
+        if total is not None and v > total:
+            raise ValueError("available_beds cannot exceed total_beds")
+        return v
 
-# Add your own schemas here:
-# --------------------------------------------------
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class Review(BaseModel):
+    hospital_id: str = Field(..., description="Reference to hospital _id as string")
+    user_name: str = Field(..., description="Reviewer name")
+    rating: int = Field(..., ge=1, le=5, description="Rating 1-5")
+    comment: Optional[str] = Field(None, description="Review text")
+    visit_date: Optional[datetime] = Field(default=None, description="Date of visit")
